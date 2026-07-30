@@ -8,10 +8,11 @@ import { PageHeader } from "../../components/PageHeader";
 import { SystemNotify } from "../../components/SystemNotify";
 import { usePedidos } from "../../hooks/usePedidos";
 import { db, ensureAuthenticated } from "../../lib/firebase";
-import { buildPedidoNumberMap, formatCurrencyInput, money, onlyDigits, parseCurrency, pedidoNumber } from "../../lib/format";
+import { buildPedidoNumberMap, formatCurrencyInput, money, parseCurrency, pedidoNumber } from "../../lib/format";
 import { normalizePedidoArtes } from "../../lib/pedidoArtes";
 import { ARTE_FINAL_OBRIGATORIA, pedidoPodeEntrarNoStatus } from "../../lib/pedidoWorkflow";
-import { isCanceled, normalizeStatus, statusLabel } from "../../lib/status";
+import { isCanceled, normalizeStatus } from "../../lib/status";
+import { buildPedidoStatusWhatsapp } from "../../lib/whatsapp";
 import type { Empresa, Pedido, Perfil } from "../../types";
 import { etapas } from "../../types";
 
@@ -22,7 +23,7 @@ export function DetalhePedido() {
 
 export function PedidoDetail({ id, backTo }: { id: string; backTo: string }) {
   const navigate = useNavigate();
-  const { mostrarFinanceiro } = useOutletContext<{ perfil: Perfil; mostrarFinanceiro: boolean; empresa: Empresa }>();
+  const { mostrarFinanceiro, empresa } = useOutletContext<{ perfil: Perfil; mostrarFinanceiro: boolean; empresa: Empresa }>();
   const { pedidos } = usePedidos();
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,14 +81,7 @@ export function PedidoDetail({ id, backTo }: { id: string; backTo: string }) {
   const aguardandoArte = pedido.status === "Aguardando Arte";
   const encerrado = pedido.status === "Entregue" || isCanceled(pedido.status);
   const bloqueadoSemArte = !pedidoPodeEntrarNoStatus(pedido, proxima);
-  const whatsappMessage = [
-    `Olá, ${pedido.clienteNome}! 😊`,
-    "",
-    `Passando para informar que o seu Pedido está atualmente na etapa: ${statusLabel(pedido.status)}.`,
-    "",
-    "Qualquer novidade, avisamos por aqui. Obrigado pela confiança! ✨"
-  ].join("\n");
-  const whatsapp = `https://wa.me/55${onlyDigits(pedido.whatsapp)}?text=${encodeURIComponent(whatsappMessage)}`;
+  const whatsapp = buildPedidoStatusWhatsapp(pedido, empresa);
 
   async function avancar() {
     if (!pedido || encerrado) return;

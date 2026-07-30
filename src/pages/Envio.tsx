@@ -1,16 +1,18 @@
 import { doc, updateDoc } from "firebase/firestore";
 import { ExternalLink, MessageCircle, Package, Save, Truck } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { StatusBadge } from "../components/Badges";
 import { EmptyState } from "../components/EmptyState";
 import { PageHeader } from "../components/PageHeader";
 import { usePedidos } from "../hooks/usePedidos";
 import { db, ensureAuthenticated } from "../lib/firebase";
-import { buildPedidoNumberMap, onlyDigits, pedidoNumber } from "../lib/format";
-import type { Pedido } from "../types";
+import { buildPedidoNumberMap, pedidoNumber } from "../lib/format";
+import { buildTrackingWhatsapp } from "../lib/whatsapp";
+import type { Empresa, Pedido, Perfil } from "../types";
 
 export function EnvioPage() {
+  const { empresa } = useOutletContext<{ perfil: Perfil; mostrarFinanceiro: boolean; empresa: Empresa; usuarioNome: string }>();
   const { pedidos } = usePedidos();
   const numeroMap = buildPedidoNumberMap(pedidos);
   const envios = pedidos.filter((pedido) => ["Em Preparação", "Enviado", "Entregue"].includes(pedido.status));
@@ -40,7 +42,7 @@ export function EnvioPage() {
       <div className="grid cols-3">
         {envios.map((pedido) => {
           const rastreio = rastreios[pedido.id] ?? pedido.rastreio ?? "";
-          const whatsapp = buildTrackingWhatsapp(pedido, rastreio);
+          const whatsapp = buildTrackingWhatsapp(pedido, rastreio, empresa);
           return (
           <article className="card envio-card" key={pedido.id}>
             <div className="card-content grid envio-card-content">
@@ -80,16 +82,4 @@ export function EnvioPage() {
       {message ? <p className="muted envio-message">{message}</p> : null}
     </>
   );
-}
-
-function buildTrackingWhatsapp(pedido: Pedido, rastreio: string) {
-  const text = [
-    `Olá, ${pedido.clienteNome}! 😊`,
-    "",
-    "Passando para avisar que o seu Pedido foi enviado.",
-    `Código de rastreio: ${rastreio.trim()}`,
-    "",
-    "Assim que houver atualização da transportadora, você poderá acompanhar por esse código. Obrigado pela confiança! ✨"
-  ].join("\n");
-  return `https://wa.me/55${onlyDigits(pedido.whatsapp)}?text=${encodeURIComponent(text)}`;
 }
