@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="application-name" content="MalhaSys" />
+    <meta name="apple-mobile-web-app-title" content="MalhaSys" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <title>MalhaSys</title>
+    <script>
+      (function () {
+        try {
+          var color = localStorage.getItem("malhariaos-primary-color");
+          if (color) document.documentElement.style.setProperty("--color-primary", color);
+        } catch (error) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

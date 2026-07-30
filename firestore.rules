@@ -1,0 +1,144 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userEmail() {
+      return request.auth.token.email;
+    }
+
+    function hasUidProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function hasEmailProfile() {
+      return signedIn()
+        && request.auth.token.email is string
+        && exists(/databases/$(database)/documents/usuarios/$(userEmail()));
+    }
+
+    function hasUserProfile() {
+      return signedIn()
+        && (
+          (hasUidProfile()
+            && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.ativo == true)
+          || (hasEmailProfile()
+            && get(/databases/$(database)/documents/usuarios/$(userEmail())).data.ativo == true)
+        );
+    }
+
+    function role() {
+      return hasUidProfile()
+        ? get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.perfil
+        : get(/databases/$(database)/documents/usuarios/$(userEmail())).data.perfil;
+    }
+
+    function isAdmin() {
+      return hasUserProfile() && role() == "Administrador";
+    }
+
+    function isProduction() {
+      return hasUserProfile() && (role() == "Administrador" || role() == "Produção");
+    }
+
+    function isDesigner() {
+      return hasUserProfile() && role() == "Designer";
+    }
+
+    function unchangedCreatedAt() {
+      return !("createdAt" in resource.data) || request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function validUserDoc() {
+      return request.resource.data.email is string
+        && request.resource.data.nome is string
+        && request.resource.data.ativo is bool
+        && request.resource.data.perfil in ["Administrador", "Produção", "Designer"];
+    }
+
+    function userDocMatchesId(userId) {
+      return request.resource.data.email == userId
+        || ("uid" in request.resource.data && request.resource.data.uid == userId);
+    }
+
+    function hasFinalArt() {
+      return request.resource.data.artesFinalizadas == true
+        || (request.resource.data.arteFinalUrl is string
+          && request.resource.data.arteFinalUrl.size() > 0);
+    }
+
+    function productionStatusRequiresArt() {
+      return !(request.resource.data.status in [
+        "Corte",
+        "Estamparia",
+        "Costura",
+        "Em Preparação",
+        "Preparação para Envio",
+        "Enviado",
+        "Entregue",
+        "Cancelado"
+      ]) || hasFinalArt();
+    }
+
+    match /usuarios/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || userEmail() == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        && validUserDoc()
+        && userDocMatchesId(userId);
+      allow update: if isAdmin()
+        && validUserDoc()
+        && userDocMatchesId(userId)
+        && (!("uid" in resource.data) || request.resource.data.uid == resource.data.uid);
+      allow delete: if isAdmin() && request.auth.uid != userId && userEmail() != userId;
+    }
+
+    match /empresa/{docId} {
+      allow read: if hasUserProfile();
+      allow write: if isAdmin();
+    }
+
+    match /clientes/{clienteId} {
+      allow read: if hasUserProfile();
+      allow create: if isProduction();
+      allow update: if isProduction() && unchangedCreatedAt();
+      allow delete: if isAdmin();
+    }
+
+    match /pedidos/{pedidoId} {
+      allow read: if hasUserProfile();
+      allow create: if isProduction()
+        && request.resource.data.status == "Aguardando Arte";
+      allow update: if isProduction()
+        && unchangedCreatedAt()
+        && productionStatusRequiresArt();
+      allow update: if isDesigner()
+        && unchangedCreatedAt()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "designer",
+          "detalhesArte",
+          "artes",
+          "artesFinalizadas",
+          "arteFinalUrl",
+          "arteFinalPath",
+          "status"
+        ])
+        && request.resource.data.status in ["Aguardando Arte", "Arte Aprovada"];
+      allow delete: if isAdmin();
+    }
+
+    match /metas/{metaId} {
+      allow read: if hasUserProfile();
+      allow create, update: if isProduction();
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
