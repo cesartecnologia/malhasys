@@ -1110,7 +1110,19 @@ button.danger:not(.secondary) {
 }
 
 .designer-detail-panel textarea {
-  min-height: 110px;
+  min-height: 150px;
+}
+
+.designer-order-info-panel {
+  align-content: start;
+}
+
+.designer-order-info-panel .designer-art-board {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.designer-order-info-panel .designer-art-card img {
+  max-height: 250px;
 }
 
 .designer-final-upload-list {
@@ -1372,6 +1384,74 @@ button.danger:not(.secondary) {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface-soft);
+}
+
+.edit-art-section {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-soft);
+}
+
+.edit-art-section > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.edit-art-section p {
+  margin: 0;
+}
+
+.edit-art-list {
+  display: grid;
+  gap: 10px;
+}
+
+.edit-art-item {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.edit-art-item.inactive {
+  opacity: 0.72;
+}
+
+.edit-art-preview {
+  width: 112px;
+  height: 78px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-soft);
+}
+
+.edit-art-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: var(--color-surface);
+}
+
+.edit-art-preview div {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .item-gola-row {
@@ -1888,6 +1968,11 @@ button.danger:not(.secondary) {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
   gap: 16px;
+}
+
+.designer-detail-layout {
+  grid-template-columns: minmax(520px, 1.45fr) minmax(320px, 0.8fr);
+  align-items: start;
 }
 
 .key-values {
@@ -2792,6 +2877,10 @@ button.danger:not(.secondary) {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .designer-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .production-flow-content {
     overflow-x: auto;
     grid-template-columns: repeat(6, minmax(92px, 1fr));
@@ -2966,8 +3055,18 @@ button.danger:not(.secondary) {
 
   .form-grid,
   .order-art-field,
+  .edit-art-item,
   .item-gola-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .edit-art-preview {
+    width: 100%;
+    height: 140px;
+  }
+
+  .edit-art-item .compact-button {
+    justify-self: end;
   }
 
   .order-art-field .icon-button,

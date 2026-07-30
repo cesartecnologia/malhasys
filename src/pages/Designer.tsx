@@ -383,35 +383,7 @@ export function DetalheDesigner() {
         }
       />
 
-      <div className="detail-layout">
-        <section className="panel grid">
-          <div className="row-title">
-            <StatusBadge status={pedido.status} />
-            <PriorityBadge prioridade={pedido.prioridade} />
-          </div>
-
-          <div className="designer-art-board">
-            {pedidoArtes.map((arte, index) => (
-              <ArtPreviewCard
-                key={arte.id}
-                arte={arte}
-                index={index}
-                previewUrl={previewUrls[arte.id]}
-                previewType={files[arte.id]?.type || ""}
-                numero={numero}
-              />
-            ))}
-          </div>
-
-          <div className="key-values">
-            <div><span>Tipo de estampa</span><strong>{pedido.tipoEstampa || "-"}</strong></div>
-            <div><span>Artes finais</span><strong>{totalFinalizadas}/{pedidoArtes.length}</strong></div>
-            <div><span>Cliente</span><strong>{pedido.clienteNome || "-"}</strong></div>
-            <div><span>Data</span><strong>{date(pedido.createdAt)}</strong></div>
-            <div><span>Observações</span><strong>{pedido.observacoes || "-"}</strong></div>
-          </div>
-        </section>
-
+      <div className="detail-layout designer-detail-layout">
         <form className="panel grid designer-detail-panel" onSubmit={saveDesignerData}>
           <label className="field">
             <span>Designer responsável</span>
@@ -500,6 +472,34 @@ export function DetalheDesigner() {
             </button>
           </div>
         </form>
+
+        <section className="panel grid designer-order-info-panel">
+          <div className="row-title">
+            <StatusBadge status={pedido.status} />
+            <PriorityBadge prioridade={pedido.prioridade} />
+          </div>
+
+          <div className="designer-art-board">
+            {pedidoArtes.map((arte, index) => (
+              <ArtPreviewCard
+                key={arte.id}
+                arte={arte}
+                index={index}
+                previewUrl={previewUrls[arte.id]}
+                previewType={files[arte.id]?.type || ""}
+                numero={numero}
+              />
+            ))}
+          </div>
+
+          <div className="key-values">
+            <div><span>Tipo de estampa</span><strong>{pedido.tipoEstampa || "-"}</strong></div>
+            <div><span>Artes finais</span><strong>{totalFinalizadas}/{pedidoArtes.length}</strong></div>
+            <div><span>Cliente</span><strong>{pedido.clienteNome || "-"}</strong></div>
+            <div><span>Data</span><strong>{date(pedido.createdAt)}</strong></div>
+            <div><span>Observações</span><strong>{pedido.observacoes || "-"}</strong></div>
+          </div>
+        </section>
       </div>
     </>
   );
@@ -578,7 +578,7 @@ async function generateProductionSheetPdf({
 
   drawProductionSheetHeader(pdf, empresa, logo, numero, pedido.clienteNome);
 
-  let y = 628;
+  let y = 604;
   pdf.rect(44, y - 10, 507, 30, "0.94 0.96 0.98");
   pdf.text({ text: "Ficha para Estamparia", x: 58, y, size: 14, bold: true });
   pdf.text({ text: `Tipo: ${pedido.tipoEstampa || "-"}`, x: 360, y, size: 10, bold: true });
@@ -656,12 +656,12 @@ function drawProductionSheetHeader(pdf: SimplePdf, empresa: Empresa, logo: PdfIm
   pdf.rect(40, 680, 515, 122, "0.97 0.98 0.99");
   if (logo) pdf.image(logo, 263, 742, 68, 48);
   centerPdfText(pdf, empresa.nome || "MalhaSys", 722, 17, true);
-  const dadosEmpresa = [empresa.cnpj, empresa.endereco, empresa.telefone, empresa.email].filter(Boolean).join(" · ");
+  const dadosEmpresa = [empresa.cnpj, empresa.endereco, empresa.telefone, empresa.email].filter(Boolean).join(" - ");
   wrapText(dadosEmpresa || "Dados da empresa nao informados", 430, 9).slice(0, 2).forEach((line, index) => {
     centerPdfText(pdf, line, 706 - index * 12, 9);
   });
   pdf.line({ x1: 64, y1: 688, x2: 531, y2: 688 });
-  centerPdfText(pdf, `${numero} · ${cliente || "Cliente nao informado"}`, 665, 13, true);
+  centerPdfText(pdf, `${numero} - ${cliente || "Cliente nao informado"}`, 665, 13, true);
   centerPdfText(pdf, `Gerado em ${new Intl.DateTimeFormat("pt-BR").format(new Date())}`, 648, 9);
 }
 

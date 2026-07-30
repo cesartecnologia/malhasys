@@ -138,6 +138,8 @@ service cloud.firestore {
           "artes",
           "artesFinalizadas",
           "imagensProducao",
+          "logoUrl",
+          "logoPath",
           "arteFinalUrl",
           "arteFinalPath"
         ]);

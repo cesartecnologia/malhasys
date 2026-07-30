@@ -162,6 +162,7 @@ function renderPage(commands: PdfPageCommand[]) {
 function escapePdfText(text: string) {
   return text
     .replace(/[\u00a0\u202f]/g, " ")
+    .replace(/[·•]/g, "-")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\\/g, "\\\\")

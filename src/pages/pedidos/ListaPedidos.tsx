@@ -11,8 +11,9 @@ import { buildPedidoNumberMap, date, money, parseCurrency, pedidoNumber as forma
 import { getPedidoPreviewUrl, normalizePedidoArtes } from "../../lib/pedidoArtes";
 import { ARTE_FINAL_OBRIGATORIA, pedidoPodeEntrarNoStatus } from "../../lib/pedidoWorkflow";
 import { friendlyErrorMessage } from "../../lib/publicErrors";
+import { uploadFile } from "../../lib/storage";
 import { isCanceled, statusLabel, statusMatches } from "../../lib/status";
-import { etapas, type Empresa, type Pedido, type Perfil, type Prioridade, type StatusPedido } from "../../types";
+import { etapas, type Empresa, type Pedido, type PedidoArte, type Perfil, type Prioridade, type StatusPedido } from "../../types";
 import { usePedidos } from "../../hooks/usePedidos";
 
 type ViewMode = "cards" | "list";
@@ -32,6 +33,9 @@ export function ListaPedidos() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [workflowNotice, setWorkflowNotice] = useState(false);
+  const [editingArtFiles, setEditingArtFiles] = useState<Record<string, File | null>>({});
+  const [editingArtPreviews, setEditingArtPreviews] = useState<Record<string, string>>({});
+  const [editingRemovedArts, setEditingRemovedArts] = useState<Record<string, boolean>>({});
 
   const numeroMap = useMemo(() => buildPedidoNumberMap(pedidos), [pedidos]);
 
@@ -56,6 +60,20 @@ export function ListaPedidos() {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
+  useEffect(() => {
+    const previews: Record<string, string> = {};
+    Object.entries(editingArtFiles).forEach(([id, file]) => {
+      if (file && file.type.startsWith("image/")) {
+        previews[id] = URL.createObjectURL(file);
+      }
+    });
+    setEditingArtPreviews(previews);
+
+    return () => {
+      Object.values(previews).forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [editingArtFiles]);
+
   function openDetails(pedido: Pedido) {
     navigate(`/pedidos/${pedido.id}`);
   }
@@ -68,6 +86,9 @@ export function ListaPedidos() {
     setEditing(pedido);
     setMenuOpen(null);
     setFormError("");
+    setEditingArtFiles({});
+    setEditingArtPreviews({});
+    setEditingRemovedArts({});
   }
 
   async function submitEdit(event: FormEvent<HTMLFormElement>) {
@@ -86,6 +107,56 @@ export function ListaPedidos() {
 
     try {
       await ensureAuthenticated();
+      const existingArtes = normalizePedidoArtes(editing);
+      const removedAny = existingArtes.some((arte) => editingRemovedArts[arte.id]);
+      const changedAny = Object.values(editingArtFiles).some(Boolean);
+      let artePatch: Partial<Pedido> = {};
+
+      if (existingArtes.length > 0 && (removedAny || changedAny)) {
+        const keptArtes = existingArtes.filter((arte) => !editingRemovedArts[arte.id]);
+        const baseArtes = keptArtes.length > 0 ? keptArtes : [existingArtes[0]];
+
+        const updatedArtes = await Promise.all(baseArtes.map(async (arte, index) => {
+          const file = editingArtFiles[arte.id];
+          const uploaded = await uploadFile("pedidos/referencias", file);
+          const nome = String(form.get(`arteNome-${arte.id}`) || arte.nome || `Arte ${index + 1}`).trim();
+          const wasRemovedAsOnlyArt = keptArtes.length === 0;
+          const nextArte: PedidoArte = {
+            ...arte,
+            nome: nome || `Arte ${index + 1}`
+          };
+
+          if (wasRemovedAsOnlyArt) {
+            nextArte.referenciaUrl = "";
+            nextArte.referenciaPath = "";
+            nextArte.arteFinalUrl = "";
+            nextArte.arteFinalPath = "";
+          }
+
+          if (uploaded.url) {
+            nextArte.referenciaUrl = uploaded.url;
+            nextArte.referenciaPath = uploaded.path;
+            nextArte.arteFinalUrl = "";
+            nextArte.arteFinalPath = "";
+          }
+
+          return nextArte;
+        }));
+        const firstReference = updatedArtes.find((arte) => arte.referenciaUrl) || updatedArtes[0];
+        const firstFinal = updatedArtes.find((arte) => arte.arteFinalUrl);
+        const artesFinalizadas = updatedArtes.every((arte) => Boolean(arte.arteFinalUrl?.trim()));
+
+        artePatch = {
+          artes: updatedArtes,
+          artesFinalizadas,
+          logoUrl: firstReference?.referenciaUrl || "",
+          logoPath: firstReference?.referenciaPath || "",
+          arteFinalUrl: firstFinal?.arteFinalUrl || "",
+          arteFinalPath: firstFinal?.arteFinalPath || "",
+          status: artesFinalizadas ? nextStatus : "Aguardando Arte"
+        };
+      }
+
       await updateDoc(doc(db, "pedidos", editing.id), {
         status: nextStatus,
         prioridade: form.get("prioridade") as Prioridade,
@@ -94,9 +165,13 @@ export function ListaPedidos() {
           valorTotal: parseCurrency(form.get("valorTotal")),
           valorEntrada: parseCurrency(form.get("valorEntrada")),
           formaPagamento: form.get("formaPagamento")
-        } : {})
+        } : {}),
+        ...artePatch
       });
       setEditing(null);
+      setEditingArtFiles({});
+      setEditingArtPreviews({});
+      setEditingRemovedArts({});
     } catch (err) {
       setFormError(friendlyErrorMessage(err, "Não foi possível salvar o pedido."));
     } finally {
@@ -120,6 +195,8 @@ export function ListaPedidos() {
     await deleteDoc(doc(db, "pedidos", deleteTarget.id));
     setDeleteTarget(null);
   }
+
+  const editingArtes = editing ? normalizePedidoArtes(editing) : [];
 
   return (
     <>
@@ -318,6 +395,73 @@ export function ListaPedidos() {
             ) : null}
             {mostrarFinanceiro ? <label className="field"><span>Forma de pagamento</span><input name="formaPagamento" defaultValue={editing.formaPagamento || ""} /></label> : null}
             <label className="field full"><span>Observações</span><textarea name="observacoes" defaultValue={editing.observacoes || ""} /></label>
+            {editingArtes.length > 0 ? (
+              <section className="edit-art-section full" aria-label="Artes do pedido">
+                <div>
+                  <strong>Artes do pedido</strong>
+                  <p className="muted">Altere a imagem de referência ou exclua a arte enviada no pedido.</p>
+                </div>
+                <div className="edit-art-list">
+                  {editingArtes.map((arte, index) => {
+                    const isRemoved = Boolean(editingRemovedArts[arte.id]);
+                    const selectedFile = editingArtFiles[arte.id];
+                    const previewUrl = editingArtPreviews[arte.id] || (!isRemoved ? arte.referenciaUrl : "");
+                    const isPdf = selectedFile?.type === "application/pdf" || (!selectedFile && Boolean(arte.referenciaUrl?.toLowerCase().includes(".pdf")));
+
+                    return (
+                      <div className={`edit-art-item ${isRemoved ? "inactive" : ""}`} key={arte.id}>
+                        <div className="edit-art-preview">
+                          {previewUrl && !isPdf ? (
+                            <img src={previewUrl} alt={arte.nome || `Arte ${index + 1}`} />
+                          ) : (
+                            <div>
+                              <ImageIcon size={22} />
+                              <span>{isRemoved ? "Arte removida" : isPdf ? "Arquivo PDF" : "Sem imagem"}</span>
+                            </div>
+                          )}
+                        </div>
+                        <label className="field">
+                          <span>Nome da arte</span>
+                          <input name={`arteNome-${arte.id}`} defaultValue={arte.nome || `Arte ${index + 1}`} disabled={isRemoved} />
+                        </label>
+                        <label className="field">
+                          <span>Alterar arte</span>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                            disabled={isRemoved}
+                            onChange={(event) => {
+                              setEditingArtFiles((current) => ({
+                                ...current,
+                                [arte.id]: event.currentTarget.files?.[0] || null
+                              }));
+                            }}
+                          />
+                        </label>
+                        <button
+                          className={`secondary compact-button ${isRemoved ? "" : "danger"}`}
+                          type="button"
+                          onClick={() => {
+                            setEditingRemovedArts((current) => ({
+                              ...current,
+                              [arte.id]: !current[arte.id]
+                            }));
+                            setEditingArtFiles((current) => ({
+                              ...current,
+                              [arte.id]: null
+                            }));
+                          }}
+                        >
+                          {isRemoved ? <CheckCircle2 size={15} /> : <Trash2 size={15} />}
+                          {isRemoved ? "Restaurar" : "Excluir arte"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="muted">Ao trocar ou excluir uma arte, o pedido volta para Aguardando Arte até o Designer enviar a arte final.</p>
+              </section>
+            ) : null}
             {formError ? <p className="muted full">{formError}</p> : null}
             <div className="form-actions-line full">
               <button className="secondary compact-button" type="button" onClick={() => setEditing(null)}>Cancelar</button>
