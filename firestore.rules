@@ -45,8 +45,16 @@ service cloud.firestore {
       return hasUserProfile() && (role() == "Administrador" || role() == "Produção");
     }
 
+    function isOperational() {
+      return hasUserProfile() && role() == "Operacional";
+    }
+
+    function hasProductionAccess() {
+      return isProduction() || isOperational();
+    }
+
     function isDesigner() {
-      return hasUserProfile() && role() == "Designer";
+      return hasUserProfile() && (role() == "Designer" || role() == "Operacional");
     }
 
     function unchangedCreatedAt() {
@@ -57,7 +65,7 @@ service cloud.firestore {
       return request.resource.data.email is string
         && request.resource.data.nome is string
         && request.resource.data.ativo is bool
-        && request.resource.data.perfil in ["Administrador", "Produção", "Designer"];
+        && request.resource.data.perfil in ["Administrador", "Produção", "Designer", "Operacional"];
     }
 
     function userDocMatchesId(userId) {
@@ -104,8 +112,8 @@ service cloud.firestore {
 
     match /clientes/{clienteId} {
       allow read: if hasUserProfile();
-      allow create: if isProduction();
-      allow update: if isProduction() && unchangedCreatedAt();
+      allow create: if hasProductionAccess();
+      allow update: if hasProductionAccess() && unchangedCreatedAt();
       allow delete: if isAdmin();
     }
 
@@ -116,6 +124,23 @@ service cloud.firestore {
       allow update: if isProduction()
         && unchangedCreatedAt()
         && productionStatusRequiresArt();
+      allow update: if isOperational()
+        && unchangedCreatedAt()
+        && productionStatusRequiresArt()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "status",
+          "prioridade",
+          "observacoes",
+          "rastreio",
+          "ativo",
+          "designer",
+          "detalhesArte",
+          "artes",
+          "artesFinalizadas",
+          "imagensProducao",
+          "arteFinalUrl",
+          "arteFinalPath"
+        ]);
       allow update: if isDesigner()
         && unchangedCreatedAt()
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -123,6 +148,7 @@ service cloud.firestore {
           "detalhesArte",
           "artes",
           "artesFinalizadas",
+          "imagensProducao",
           "arteFinalUrl",
           "arteFinalPath",
           "status"

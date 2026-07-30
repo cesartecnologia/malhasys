@@ -1,7 +1,7 @@
 import { deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { AlertCircle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock, Edit3, Filter, Grid2X2, ImageIcon, List as ListIcon, MoreHorizontal, Plus, Save, Search, Trash2, UserRound, WalletCards, X, XCircle } from "lucide-react";
 import { FormEvent, MouseEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { EmptyState } from "../../components/EmptyState";
 import { LoadingSpinner } from "../../components/LoadingSpinner";
 import { PageHeader } from "../../components/PageHeader";
@@ -12,7 +12,7 @@ import { getPedidoPreviewUrl, normalizePedidoArtes } from "../../lib/pedidoArtes
 import { ARTE_FINAL_OBRIGATORIA, pedidoPodeEntrarNoStatus } from "../../lib/pedidoWorkflow";
 import { friendlyErrorMessage } from "../../lib/publicErrors";
 import { isCanceled, statusLabel, statusMatches } from "../../lib/status";
-import { etapas, type Pedido, type Prioridade, type StatusPedido } from "../../types";
+import { etapas, type Empresa, type Pedido, type Perfil, type Prioridade, type StatusPedido } from "../../types";
 import { usePedidos } from "../../hooks/usePedidos";
 
 type ViewMode = "cards" | "list";
@@ -20,6 +20,7 @@ const PAGE_SIZE = 16;
 
 export function ListaPedidos() {
   const navigate = useNavigate();
+  const { perfil, mostrarFinanceiro } = useOutletContext<{ perfil: Perfil; mostrarFinanceiro: boolean; empresa: Empresa; usuarioNome: string }>();
   const { pedidos, loading, error } = usePedidos();
   const [busca, setBusca] = useState("");
   const [status, setStatus] = useState("Todos");
@@ -88,10 +89,12 @@ export function ListaPedidos() {
       await updateDoc(doc(db, "pedidos", editing.id), {
         status: nextStatus,
         prioridade: form.get("prioridade") as Prioridade,
-        valorTotal: parseCurrency(form.get("valorTotal")),
-        valorEntrada: parseCurrency(form.get("valorEntrada")),
-        formaPagamento: form.get("formaPagamento"),
-        observacoes: form.get("observacoes")
+        observacoes: form.get("observacoes"),
+        ...(mostrarFinanceiro ? {
+          valorTotal: parseCurrency(form.get("valorTotal")),
+          valorEntrada: parseCurrency(form.get("valorEntrada")),
+          formaPagamento: form.get("formaPagamento")
+        } : {})
       });
       setEditing(null);
     } catch (err) {
@@ -133,9 +136,11 @@ export function ListaPedidos() {
                 <ListIcon size={18} />
               </button>
             </div>
-            <Link className="button" to="/pedidos/novo">
-              <Plus size={18} /> Novo Pedido
-            </Link>
+            {perfil !== "Operacional" ? (
+              <Link className="button" to="/pedidos/novo">
+                <Plus size={18} /> Novo Pedido
+              </Link>
+            ) : null}
           </div>
         }
       />
@@ -210,9 +215,11 @@ export function ListaPedidos() {
                         onActionClick={stopAction}
                       />
                     </div>
-                    <div className="pedido-card-body">
-                      <strong><WalletCards size={15} /> {money(pedido.valorTotal)}</strong>
-                    </div>
+                    {mostrarFinanceiro ? (
+                      <div className="pedido-card-body">
+                        <strong><WalletCards size={15} /> {money(pedido.valorTotal)}</strong>
+                      </div>
+                    ) : null}
                     <div className="pedido-art-count">
                       <ImageIcon size={14} /> {artes.filter((arte) => arte.arteFinalUrl).length}/{artes.length} arte{artes.length > 1 ? "s" : ""}
                     </div>
@@ -237,7 +244,7 @@ export function ListaPedidos() {
                       <th>Cliente</th>
                       <th>Status</th>
                       <th>Data</th>
-                      <th style={{ textAlign: "right" }}>Valor</th>
+                      {mostrarFinanceiro ? <th style={{ textAlign: "right" }}>Valor</th> : null}
                       <th className="actions-heading">Ações</th>
                     </tr>
                   </thead>
@@ -248,7 +255,7 @@ export function ListaPedidos() {
                         <td>{pedido.clienteNome || "-"}</td>
                         <td><StatusPill status={pedido.status} /></td>
                         <td>{date(pedido.createdAt)}</td>
-                        <td style={{ textAlign: "right" }}>{money(pedido.valorTotal)}</td>
+                        {mostrarFinanceiro ? <td style={{ textAlign: "right" }}>{money(pedido.valorTotal)}</td> : null}
                         <td className="actions-cell" onClick={stopAction}>
                           <ActionMenu
                             pedido={pedido}
@@ -303,9 +310,13 @@ export function ListaPedidos() {
                 <option>Urgente</option>
               </select>
             </label>
-            <label className="field"><span>Valor total</span><input name="valorTotal" inputMode="numeric" defaultValue={money(editing.valorTotal)} /></label>
-            <label className="field"><span>Valor de entrada</span><input name="valorEntrada" inputMode="numeric" defaultValue={money(editing.valorEntrada)} /></label>
-            <label className="field"><span>Forma de pagamento</span><input name="formaPagamento" defaultValue={editing.formaPagamento || ""} /></label>
+            {mostrarFinanceiro ? (
+              <>
+                <label className="field"><span>Valor total</span><input name="valorTotal" inputMode="numeric" defaultValue={money(editing.valorTotal)} /></label>
+                <label className="field"><span>Valor de entrada</span><input name="valorEntrada" inputMode="numeric" defaultValue={money(editing.valorEntrada)} /></label>
+              </>
+            ) : null}
+            {mostrarFinanceiro ? <label className="field"><span>Forma de pagamento</span><input name="formaPagamento" defaultValue={editing.formaPagamento || ""} /></label> : null}
             <label className="field full"><span>Observações</span><textarea name="observacoes" defaultValue={editing.observacoes || ""} /></label>
             {formError ? <p className="muted full">{formError}</p> : null}
             <div className="form-actions-line full">

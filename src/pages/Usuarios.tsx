@@ -125,6 +125,7 @@ export function UsuariosPage() {
               <option>Administrador</option>
               <option>Produção</option>
               <option>Designer</option>
+              <option>Operacional</option>
             </select>
           </label>
           <div className="form-actions-line">

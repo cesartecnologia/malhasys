@@ -1,7 +1,7 @@
 import { doc, updateDoc } from "firebase/firestore";
 import { CheckCircle2, ChevronRight, ClipboardList, PackageCheck, Palette, Scissors, Shirt } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { PageHeader } from "../../components/PageHeader";
 import { SystemNotify } from "../../components/SystemNotify";
 import { usePedidos } from "../../hooks/usePedidos";
@@ -9,7 +9,7 @@ import { db, ensureAuthenticated } from "../../lib/firebase";
 import { buildPedidoNumberMap, money, pedidoNumber } from "../../lib/format";
 import { ARTE_FINAL_OBRIGATORIA, pedidoPodeEntrarNoStatus } from "../../lib/pedidoWorkflow";
 import { statusMatches } from "../../lib/status";
-import type { Pedido, StatusPedido } from "../../types";
+import type { Empresa, Pedido, Perfil, StatusPedido } from "../../types";
 
 const statuses: { id: StatusPedido; label: string; icon: typeof CheckCircle2; color: string }[] = [
   { id: "Aguardando Arte", label: "Pedido Criado", icon: ClipboardList, color: "bg-gray" },
@@ -22,6 +22,7 @@ const statuses: { id: StatusPedido; label: string; icon: typeof CheckCircle2; co
 
 export function Producao() {
   const { pedidos } = usePedidos();
+  const { mostrarFinanceiro } = useOutletContext<{ perfil: Perfil; mostrarFinanceiro: boolean; empresa: Empresa; usuarioNome: string }>();
   const numeroMap = buildPedidoNumberMap(pedidos);
   const [selectedStatus, setSelectedStatus] = useState<StatusPedido>("Aguardando Arte");
   const [workflowNotice, setWorkflowNotice] = useState(false);
@@ -86,10 +87,12 @@ export function Producao() {
                   <p className="muted" style={{ margin: 0, fontWeight: 700 }}>Cliente</p>
                   <p style={{ margin: "4px 0 0" }}>{pedido.clienteNome || pedido.clienteId}</p>
                 </div>
-                <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12 }}>
-                  <p className="muted" style={{ margin: 0, fontWeight: 700 }}>Valor Total</p>
-                  <p style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 800 }}>{money(pedido.valorTotal)}</p>
-                </div>
+                {mostrarFinanceiro ? (
+                  <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12 }}>
+                    <p className="muted" style={{ margin: 0, fontWeight: 700 }}>Valor Total</p>
+                    <p style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 800 }}>{money(pedido.valorTotal)}</p>
+                  </div>
+                ) : null}
                 {pedido.observacoes ? (
                   <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12 }}>
                     <p className="muted" style={{ margin: 0, fontWeight: 700 }}>Observações</p>

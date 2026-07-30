@@ -1,5 +1,5 @@
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { ArrowLeft, CheckCircle2, ExternalLink, Grid2X2, ImageIcon, List as ListIcon, Palette, Save, Search, UploadCloud } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ExternalLink, Grid2X2, ImageIcon, List as ListIcon, Palette, Printer, Save, Search, Trash2, UploadCloud } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { PriorityBadge, StatusBadge } from "../components/Badges";
@@ -9,10 +9,11 @@ import { PageHeader } from "../components/PageHeader";
 import { usePedidos } from "../hooks/usePedidos";
 import { db, ensureAuthenticated } from "../lib/firebase";
 import { buildPedidoNumberMap, date, pedidoNumber } from "../lib/format";
+import { type PdfImageData, SimplePdf, wrapText } from "../lib/pdf";
 import { getPedidoPreviewUrl, normalizePedidoArtes, pedidoTemTodasArtesFinais } from "../lib/pedidoArtes";
 import { friendlyErrorMessage } from "../lib/publicErrors";
 import { uploadFile } from "../lib/storage";
-import type { Pedido, PedidoArte } from "../types";
+import type { Empresa, Pedido, PedidoArte, PedidoImagemProducao } from "../types";
 
 type ViewMode = "cards" | "list";
 
@@ -154,7 +155,7 @@ export function DesignerPage() {
 export function DetalheDesigner() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { usuarioNome } = useOutletContext<{ usuarioNome: string }>();
+  const { usuarioNome, empresa } = useOutletContext<{ usuarioNome: string; empresa: Empresa }>();
   const { pedidos } = usePedidos();
   const numeroMap = useMemo(() => buildPedidoNumberMap(pedidos), [pedidos]);
   const [pedido, setPedido] = useState<Pedido | null>(null);
@@ -164,7 +165,10 @@ export function DetalheDesigner() {
   const [detalhesArte, setDetalhesArte] = useState("");
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+  const [productionFiles, setProductionFiles] = useState<File[]>([]);
+  const [productionPreviewUrls, setProductionPreviewUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -185,6 +189,7 @@ export function DetalheDesigner() {
               setDesigner(data.designer || usuarioNome || "");
               setDetalhesArte(data.detalhesArte || "");
               setFiles({});
+              setProductionFiles([]);
               setMessage("");
             }
             setLoading(false);
@@ -218,6 +223,15 @@ export function DetalheDesigner() {
     };
   }, [files]);
 
+  useEffect(() => {
+    const urls = productionFiles.map((file) => URL.createObjectURL(file));
+    setProductionPreviewUrls(urls);
+
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [productionFiles]);
+
   async function saveDesignerData(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await save(false);
@@ -225,6 +239,63 @@ export function DetalheDesigner() {
 
   async function releaseToProduction() {
     await save(true);
+  }
+
+  function addProductionFiles(fileList: FileList | null) {
+    if (!pedido || !fileList) return;
+    const currentTotal = (pedido.imagensProducao?.length || 0) + productionFiles.length;
+    const slots = 4 - currentTotal;
+    if (slots <= 0) {
+      setMessage("A ficha permite no máximo 4 imagens.");
+      return;
+    }
+
+    const selected = Array.from(fileList)
+      .filter((file) => file.type.startsWith("image/"))
+      .slice(0, slots);
+
+    if (selected.length === 0) {
+      setMessage("Selecione apenas imagens para a ficha de estamparia.");
+      return;
+    }
+
+    setProductionFiles((current) => [...current, ...selected]);
+  }
+
+  async function removeProductionImage(index: number) {
+    if (!pedido) return;
+    setSaving(true);
+    setMessage("");
+    try {
+      await ensureAuthenticated();
+      const imagensProducao = (pedido.imagensProducao || []).filter((_, imageIndex) => imageIndex !== index);
+      await updateDoc(doc(db, "pedidos", pedido.id), { imagensProducao });
+      setMessage("Imagem removida da ficha.");
+    } catch (err) {
+      setMessage(friendlyErrorMessage(err, "Não foi possível remover a imagem."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function printProductionSheet() {
+    if (!pedido) return;
+    setPrinting(true);
+    setMessage("");
+    try {
+      await generateProductionSheetPdf({
+        pedido,
+        numero: pedidoNumber(pedido.id, numeroMap),
+        empresa,
+        designer,
+        detalhesArte,
+        imageUrls: productionSheetImageUrls(pedido, productionPreviewUrls)
+      });
+    } catch (err) {
+      setMessage(friendlyErrorMessage(err, "Não foi possível gerar a ficha de impressão."));
+    } finally {
+      setPrinting(false);
+    }
   }
 
   async function save(release: boolean) {
@@ -250,15 +321,34 @@ export function DetalheDesigner() {
       );
       const primeiraFinal = updatedArtes.find((arte) => arte.arteFinalUrl);
       const todasFinalizadas = updatedArtes.every((arte) => Boolean(arte.arteFinalUrl?.trim()));
+      const uploadedProductionImages = await Promise.all(
+        productionFiles.map(async (file, index) => {
+          const uploaded = await uploadFile("pedidos/fichas-estamparia", file);
+          return uploaded.url
+            ? {
+                id: createLocalId(`ficha-${index}`),
+                nome: file.name,
+                url: uploaded.url,
+                path: uploaded.path
+              }
+            : null;
+        })
+      );
+      const imagensProducao = [
+        ...(pedido.imagensProducao || []),
+        ...uploadedProductionImages.filter(Boolean)
+      ].slice(0, 4) as PedidoImagemProducao[];
       await updateDoc(doc(db, "pedidos", pedido.id), {
         designer,
         detalhesArte,
         artes: updatedArtes,
         artesFinalizadas: todasFinalizadas,
+        ...(productionFiles.length ? { imagensProducao } : {}),
         ...(primeiraFinal?.arteFinalUrl ? { arteFinalUrl: primeiraFinal.arteFinalUrl, arteFinalPath: primeiraFinal.arteFinalPath || "" } : {}),
         ...(release && todasFinalizadas ? { status: "Arte Aprovada" } : {})
       });
       setFiles({});
+      setProductionFiles([]);
       setMessage(release ? "Artes aprovadas e enviadas para produção." : "Detalhes da arte salvos.");
       if (release) window.setTimeout(() => navigate("/designer"), 700);
     } catch (err) {
@@ -349,9 +439,59 @@ export function DetalheDesigner() {
             ))}
           </div>
 
+          <div className="designer-production-images">
+            <div className="section-heading-line">
+              <span>Imagens para ficha de estamparia</span>
+              <small>{(pedido.imagensProducao?.length || 0) + productionFiles.length}/4 imagens</small>
+            </div>
+
+            {(pedido.imagensProducao?.length || productionPreviewUrls.length) ? (
+              <div className="designer-production-image-grid">
+                {(pedido.imagensProducao || []).map((image, index) => (
+                  <div className="designer-production-thumb" key={image.id || image.url}>
+                    <img src={image.url} alt={`Imagem ${index + 1} da ficha`} />
+                    <button type="button" className="icon-button danger ghost" onClick={() => void removeProductionImage(index)} aria-label="Remover imagem da ficha">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+                {productionPreviewUrls.map((url, index) => (
+                  <div className="designer-production-thumb pending" key={url}>
+                    <img src={url} alt={`Nova imagem ${index + 1} da ficha`} />
+                    <button type="button" className="icon-button danger ghost" onClick={() => setProductionFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} aria-label="Remover imagem selecionada">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-inline compact-empty">
+                <ImageIcon size={24} />
+                <strong>Nenhuma imagem na ficha</strong>
+              </div>
+            )}
+
+            <label className="field">
+              <span>Enviar imagens da ficha</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={(pedido.imagensProducao?.length || 0) + productionFiles.length >= 4}
+                onChange={(event) => {
+                  addProductionFiles(event.target.files);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          </div>
+
           {message ? <p className="muted">{message}</p> : null}
 
           <div className="form-actions-line">
+            <button className="secondary compact-button" type="button" disabled={printing} onClick={() => void printProductionSheet()}>
+              <Printer size={17} /> {printing ? "Gerando..." : "Imprimir ficha"}
+            </button>
             <button className="secondary compact-button" type="submit" disabled={saving}>
               <Save size={17} /> {saving ? "Salvando..." : "Salvar detalhes"}
             </button>
@@ -403,6 +543,183 @@ function arteStatusText(pedido: Pedido) {
   const referencias = artes.filter((arte) => arte.referenciaUrl).length;
   if (referencias > 0) return `${referencias}/${artes.length} referência${referencias > 1 ? "s" : ""}`;
   return "Sem arte no pedido";
+}
+
+function productionSheetImageUrls(pedido: Pedido, pendingUrls: string[]) {
+  const savedUrls = (pedido.imagensProducao || []).map((image) => image.url).filter(Boolean);
+  if (savedUrls.length || pendingUrls.length) return [...savedUrls, ...pendingUrls].slice(0, 4);
+
+  return normalizePedidoArtes(pedido)
+    .map((arte) => arte.arteFinalUrl || arte.referenciaUrl || "")
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+async function generateProductionSheetPdf({
+  pedido,
+  numero,
+  empresa,
+  designer,
+  detalhesArte,
+  imageUrls
+}: {
+  pedido: Pedido;
+  numero: string;
+  empresa: Empresa;
+  designer: string;
+  detalhesArte: string;
+  imageUrls: string[];
+}) {
+  const pdf = new SimplePdf();
+  const logo = await loadPdfImage(empresa.logoUrl || "/logo.png", "ImLogo", 170, 120).catch(() => null);
+  const images = (await Promise.all(
+    imageUrls.map((url, index) => loadPdfImage(url, `ImFicha${index + 1}`, 520, 380).catch(() => null))
+  )).filter(Boolean) as PdfImageData[];
+
+  drawProductionSheetHeader(pdf, empresa, logo, numero, pedido.clienteNome);
+
+  let y = 628;
+  pdf.rect(44, y - 10, 507, 30, "0.94 0.96 0.98");
+  pdf.text({ text: "Ficha para Estamparia", x: 58, y, size: 14, bold: true });
+  pdf.text({ text: `Tipo: ${pedido.tipoEstampa || "-"}`, x: 360, y, size: 10, bold: true });
+  y -= 32;
+
+  if (images.length) {
+    const slots = [
+      { x: 58, y: 420, width: 230, height: 155 },
+      { x: 307, y: 420, width: 230, height: 155 },
+      { x: 58, y: 244, width: 230, height: 155 },
+      { x: 307, y: 244, width: 230, height: 155 }
+    ];
+
+    images.forEach((image, index) => {
+      const slot = slots[index];
+      if (!slot) return;
+      pdf.rect(slot.x - 4, slot.y - 4, slot.width + 8, slot.height + 8, "0.98 0.98 0.99");
+      const fitted = fitImage(image, slot.width, slot.height);
+      pdf.image(image, slot.x + (slot.width - fitted.width) / 2, slot.y + (slot.height - fitted.height) / 2, fitted.width, fitted.height);
+      pdf.text({ text: `Imagem ${index + 1}`, x: slot.x, y: slot.y - 17, size: 8, bold: true });
+    });
+    y = 210;
+  } else {
+    pdf.rect(58, 430, 479, 120, "0.96 0.96 0.97");
+    centerPdfText(pdf, "Nenhuma imagem adicionada para a ficha.", 488, 11, true);
+    y = 388;
+  }
+
+  pdf.text({ text: "Itens do pedido", x: 58, y, size: 12, bold: true });
+  y -= 18;
+  pdf.rect(58, y - 7, 479, 20, "0.92 0.94 0.97");
+  pdf.text({ text: "Peca", x: 66, y, size: 8, bold: true });
+  pdf.text({ text: "Tamanho", x: 180, y, size: 8, bold: true });
+  pdf.text({ text: "Cor", x: 258, y, size: 8, bold: true });
+  pdf.text({ text: "Gola", x: 378, y, size: 8, bold: true });
+  pdf.text({ text: "Qtd.", x: 500, y, size: 8, bold: true });
+  y -= 20;
+
+  pedido.itens.slice(0, 8).forEach((item) => {
+    pdf.text({ text: truncatePdf(item.tipo || "-", 18), x: 66, y, size: 9 });
+    pdf.text({ text: truncatePdf(item.tamanho || "-", 12), x: 180, y, size: 9 });
+    pdf.text({ text: truncatePdf(item.cor || "-", 20), x: 258, y, size: 9 });
+    pdf.text({ text: truncatePdf(item.gola || "-", 16), x: 378, y, size: 9 });
+    pdf.text({ text: String(item.quantidade || 0), x: 505, y, size: 9, bold: true });
+    pdf.line({ x1: 58, y1: y - 8, x2: 537, y2: y - 8 });
+    y -= 18;
+  });
+
+  y -= 6;
+  pdf.text({ text: "Orientacoes do designer", x: 58, y, size: 12, bold: true });
+  y -= 18;
+  pdf.text({ text: `Designer: ${designer || pedido.designer || "-"}`, x: 58, y, size: 9, bold: true });
+  y -= 16;
+  wrapText(detalhesArte || pedido.detalhesArte || "Sem orientacoes adicionais.", 470, 9).slice(0, 5).forEach((line) => {
+    pdf.text({ text: line, x: 58, y, size: 9 });
+    y -= 13;
+  });
+
+  if (pedido.observacoes) {
+    y -= 4;
+    pdf.text({ text: "Observacoes do pedido", x: 58, y, size: 10, bold: true });
+    y -= 14;
+    wrapText(pedido.observacoes, 470, 9).slice(0, 4).forEach((line) => {
+      pdf.text({ text: line, x: 58, y, size: 9 });
+      y -= 12;
+    });
+  }
+
+  pdf.line({ x1: 44, y1: 42, x2: 551, y2: 42 });
+  centerPdfText(pdf, "Documento para orientacao interna da estamparia.", 24, 8);
+  pdf.save(`ficha-estamparia-${numero.toLowerCase().replace(/\s+/g, "-")}.pdf`);
+}
+
+function drawProductionSheetHeader(pdf: SimplePdf, empresa: Empresa, logo: PdfImageData | null, numero: string, cliente: string) {
+  pdf.rect(40, 680, 515, 122, "0.97 0.98 0.99");
+  if (logo) pdf.image(logo, 263, 742, 68, 48);
+  centerPdfText(pdf, empresa.nome || "MalhaSys", 722, 17, true);
+  const dadosEmpresa = [empresa.cnpj, empresa.endereco, empresa.telefone, empresa.email].filter(Boolean).join(" · ");
+  wrapText(dadosEmpresa || "Dados da empresa nao informados", 430, 9).slice(0, 2).forEach((line, index) => {
+    centerPdfText(pdf, line, 706 - index * 12, 9);
+  });
+  pdf.line({ x1: 64, y1: 688, x2: 531, y2: 688 });
+  centerPdfText(pdf, `${numero} · ${cliente || "Cliente nao informado"}`, 665, 13, true);
+  centerPdfText(pdf, `Gerado em ${new Intl.DateTimeFormat("pt-BR").format(new Date())}`, 648, 9);
+}
+
+function loadPdfImage(src: string, name: string, maxWidth: number, maxHeight: number): Promise<PdfImageData> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      const fitted = fitDimensions(image.naturalWidth, image.naturalHeight, maxWidth, maxHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(fitted.width));
+      canvas.height = Math.max(1, Math.round(fitted.height));
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("Canvas indisponivel."));
+        return;
+      }
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let dataHex = "";
+      for (let index = 0; index < data.length; index += 4) {
+        dataHex += data[index].toString(16).padStart(2, "0");
+        dataHex += data[index + 1].toString(16).padStart(2, "0");
+        dataHex += data[index + 2].toString(16).padStart(2, "0");
+      }
+
+      resolve({ name, width: canvas.width, height: canvas.height, dataHex: dataHex.toUpperCase() });
+    };
+    image.onerror = () => reject(new Error("Nao foi possivel carregar a imagem."));
+    image.src = src.startsWith("blob:") || src.startsWith("http") ? src : new URL(src, window.location.origin).href;
+  });
+}
+
+function fitImage(image: PdfImageData, maxWidth: number, maxHeight: number) {
+  return fitDimensions(image.width, image.height, maxWidth, maxHeight);
+}
+
+function fitDimensions(width: number, height: number, maxWidth: number, maxHeight: number) {
+  const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+  return { width: width * scale, height: height * scale };
+}
+
+function centerPdfText(pdf: SimplePdf, text: string, y: number, size: number, bold = false) {
+  const width = text.length * size * 0.52;
+  pdf.text({ text, x: Math.max(40, 297.5 - width / 2), y, size, bold });
+}
+
+function truncatePdf(value: string, max: number) {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function createLocalId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `${prefix}-${crypto.randomUUID()}`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function ArtPreviewCard({

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { clearSession } from "../lib/session";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
+import { canAccessNav } from "../lib/access";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: Home },
@@ -29,11 +30,7 @@ type Props = {
 export function Sidebar({ empresaNome, logoUrl, usuarioNome, perfil }: Props) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const filteredNavItems = navItems.filter((item) => {
-    if (perfil === "Designer") return ["Dashboard", "Designer"].includes(item.label);
-    if (perfil === "Produção") return ["Dashboard", "Pedidos", "Produção", "Envio", "Metas"].includes(item.label);
-    return true;
-  });
+  const filteredNavItems = navItems.filter((item) => canAccessNav(perfil, item.label));
 
   const nav = (
     <nav className="nav-list">

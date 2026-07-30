@@ -1,6 +1,6 @@
 import { doc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams } from "react-router-dom";
 import { Avatar } from "../../components/Avatar";
 import { StatusBadge } from "../../components/Badges";
 import { LoadingSpinner } from "../../components/LoadingSpinner";
@@ -8,10 +8,11 @@ import { PageHeader } from "../../components/PageHeader";
 import { usePedidos } from "../../hooks/usePedidos";
 import { db } from "../../lib/firebase";
 import { buildPedidoNumberMap, date, money, pedidoNumber } from "../../lib/format";
-import type { Cliente } from "../../types";
+import type { Cliente, Empresa, Perfil } from "../../types";
 
 export function DetalheCliente() {
   const { id = "" } = useParams();
+  const { mostrarFinanceiro } = useOutletContext<{ perfil: Perfil; mostrarFinanceiro: boolean; empresa: Empresa; usuarioNome: string }>();
   const { pedidos } = usePedidos();
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +30,7 @@ export function DetalheCliente() {
 
   const historico = pedidos.filter((pedido) => pedido.clienteId === cliente.id);
   const numeroMap = buildPedidoNumberMap(pedidos);
-  const total = historico.reduce((sum, pedido) => sum + Number(pedido.valorTotal || 0), 0);
+  const total = mostrarFinanceiro ? historico.reduce((sum, pedido) => sum + Number(pedido.valorTotal || 0), 0) : 0;
 
   return (
     <>
@@ -50,7 +51,7 @@ export function DetalheCliente() {
         </section>
         <aside className="panel key-values">
           <div><span>Total de pedidos</span><strong>{historico.length}</strong></div>
-          <div><span>Valor total acumulado</span><strong>{money(total)}</strong></div>
+          {mostrarFinanceiro ? <div><span>Valor total acumulado</span><strong>{money(total)}</strong></div> : null}
         </aside>
       </div>
       <section className="panel" style={{ marginTop: 16 }}>
@@ -59,7 +60,7 @@ export function DetalheCliente() {
           {historico.map((pedido) => (
             <Link className="row" to={`/pedidos/${pedido.id}`} key={pedido.id}>
               <div>
-                <div className="row-title">{pedidoNumber(pedido.id, numeroMap)} · {money(pedido.valorTotal)}</div>
+                <div className="row-title">{pedidoNumber(pedido.id, numeroMap)}{mostrarFinanceiro ? ` · ${money(pedido.valorTotal)}` : ""}</div>
                 <div className="row-meta">{date(pedido.createdAt)}</div>
               </div>
               <StatusBadge status={pedido.status} />

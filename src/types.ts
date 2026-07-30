@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type Perfil = "Administrador" | "Produção" | "Designer";
+export type Perfil = "Administrador" | "Produção" | "Designer" | "Operacional";
 export type StatusPedido =
   | "Aguardando Arte"
   | "Arte Aprovada"
@@ -30,6 +30,13 @@ export type PedidoArte = {
   arteFinalPath?: string;
 };
 
+export type PedidoImagemProducao = {
+  id: string;
+  nome?: string;
+  url: string;
+  path?: string;
+};
+
 export type Pedido = {
   id: string;
   clienteId: string;
@@ -50,6 +57,7 @@ export type Pedido = {
   arteFinalPath?: string;
   artes?: PedidoArte[];
   artesFinalizadas?: boolean;
+  imagensProducao?: PedidoImagemProducao[];
   detalhesArte?: string;
   rastreio?: string;
   designer?: string;

@@ -1,13 +1,15 @@
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { useEmpresa } from "./hooks/useEmpresa";
 import { usePerfil } from "./hooks/usePerfil";
 import { clearSession, getSession } from "./lib/session";
 import { useEffect, useState } from "react";
 import { ensureAuthenticated } from "./lib/firebase";
+import { canAccessPath } from "./lib/access";
 
 export function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { empresa } = useEmpresa();
   const [session] = useState(() => getSession());
   const perfil = usePerfil(session?.perfil);
@@ -28,6 +30,12 @@ export function App() {
         });
     }
   }, [navigate, session]);
+
+  useEffect(() => {
+    if (session && !canAccessPath(perfil.perfil, location.pathname)) {
+      navigate("/", { replace: true });
+    }
+  }, [location.pathname, navigate, perfil.perfil, session]);
 
   if (!session) return null;
 

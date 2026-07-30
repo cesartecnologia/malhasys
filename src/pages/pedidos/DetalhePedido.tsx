@@ -1,5 +1,5 @@
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { ArrowLeft, Download, MessageCircle, SkipForward, Save } from "lucide-react";
+import { ArrowLeft, Download, MessageCircle, RotateCcw, SkipForward, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { PriorityBadge, StatusBadge } from "../../components/Badges";
@@ -76,6 +76,8 @@ export function PedidoDetail({ id, backTo }: { id: string; backTo: string }) {
   if (!pedido) return <p className="muted">Pedido não encontrado.</p>;
 
   const etapaAtual = etapas.indexOf(normalizeStatus(pedido.status) as typeof etapas[number]);
+  const podeVoltarStatus = etapaAtual > 0 && !isCanceled(pedido.status);
+  const statusAnterior = etapas[Math.max(etapaAtual - 1, 0)];
   const proxima = etapas[Math.min(etapaAtual + 1, etapas.length - 1)];
   const currentPedidoLabel = pedidoNumber(pedido.id, numeroMap);
   const pedidoArtes = normalizePedidoArtes(pedido);
@@ -92,6 +94,12 @@ export function PedidoDetail({ id, backTo }: { id: string; backTo: string }) {
     }
     await ensureAuthenticated();
     await updateDoc(doc(db, "pedidos", pedido.id), { status: proxima });
+  }
+
+  async function voltarStatus() {
+    if (!pedido || !podeVoltarStatus) return;
+    await ensureAuthenticated();
+    await updateDoc(doc(db, "pedidos", pedido.id), { status: statusAnterior });
   }
 
   async function salvarInline() {
@@ -126,7 +134,7 @@ export function PedidoDetail({ id, backTo }: { id: string; backTo: string }) {
           <div className="key-values">
             <div><span>Tipo de estampa</span><strong>{pedido.tipoEstampa}</strong></div>
             <div><span>Designer</span><strong>{pedido.designer || "-"}</strong></div>
-            <div><span>Forma de pagamento</span><strong>{pedido.formaPagamento}</strong></div>
+            {mostrarFinanceiro ? <div><span>Forma de pagamento</span><strong>{pedido.formaPagamento}</strong></div> : null}
             <div><span>Observações</span><strong>{pedido.observacoes || "-"}</strong></div>
             <div><span>Detalhes da arte</span><strong>{pedido.detalhesArte || "-"}</strong></div>
           </div>
@@ -217,6 +225,15 @@ export function PedidoDetail({ id, backTo }: { id: string; backTo: string }) {
             title={bloqueadoSemArte ? ARTE_FINAL_OBRIGATORIA : undefined}
           >
             <SkipForward size={18} /> {isCanceled(pedido.status) ? "Pedido cancelado" : aguardandoArte || bloqueadoSemArte ? "Arte final obrigatória" : "Avançar para próxima etapa"}
+          </button>
+          <button
+            className="secondary"
+            type="button"
+            onClick={voltarStatus}
+            disabled={!podeVoltarStatus}
+            title={podeVoltarStatus ? `Voltar para ${statusAnterior}` : undefined}
+          >
+            <RotateCcw size={18} /> Voltar status
           </button>
           <a className="button secondary" href={whatsapp} target="_blank" rel="noreferrer">
             <MessageCircle size={18} /> Enviar status do pedido
