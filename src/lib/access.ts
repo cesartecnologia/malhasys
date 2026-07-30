@@ -1,7 +1,7 @@
 import type { Perfil } from "../types";
 
 const accessByPerfil: Record<Perfil, string[]> = {
-  Administrador: ["Dashboard", "Clientes", "Pedidos", "Produção", "Envio", "Designer", "Metas", "Relatórios", "Usuários", "Empresa"],
+  Administrador: ["Dashboard", "Clientes", "Pedidos", "Produção", "Envio", "Designer", "Metas", "Relatórios", "Usuários", "Empresa", "Admin"],
   Produção: ["Dashboard", "Clientes", "Pedidos", "Produção", "Envio", "Metas"],
   Designer: ["Dashboard", "Designer"],
   Operacional: ["Dashboard", "Clientes", "Pedidos", "Produção", "Envio", "Designer"]
@@ -16,7 +16,8 @@ const pathAccess: { path: string; label: string }[] = [
   { path: "/metas", label: "Metas" },
   { path: "/relatorios", label: "Relatórios" },
   { path: "/usuarios", label: "Usuários" },
-  { path: "/empresa", label: "Empresa" }
+  { path: "/empresa", label: "Empresa" },
+  { path: "/admin", label: "Admin" }
 ];
 
 export function canAccessNav(perfil: Perfil, label: string) {

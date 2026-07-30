@@ -36,8 +36,7 @@ export function Dashboard() {
       {loading ? (
         <LoadingSpinner />
       ) : (
-        <div className="grid">
-          <section className="grid cols-4">
+        <section className="dashboard-grid">
             {statusCards.map((item) => {
               const Icon = item.icon;
               const count = pedidos.filter((pedido) => statusMatches(pedido.status, item.status)).length;
@@ -51,16 +50,12 @@ export function Dashboard() {
                 />
               );
             })}
-          </section>
 
-          <section className="grid cols-4">
             <Metric title="Pedidos preparando para envio" value={preparandoEnvio.toString()} icon={PackageCheck} color="bg-yellow" />
             <Metric title="Pedidos Prontos" value={prontos.toString()} icon={SquareCheckBig} color="bg-green" />
             <Metric title="Total de Pedidos" value={totalOrders.toString()} icon={ClipboardList} color="bg-blue" />
             <Metric title="Taxa de Conclusão" value={`${taxa}%`} icon={Percent} color="bg-emerald" />
-          </section>
 
-          <section className="grid cols-4">
             {tiposEstampa.map((item) => {
               const Icon = item.icon;
               const count = item.tipo === "Outros"
@@ -68,8 +63,7 @@ export function Dashboard() {
                 : pedidos.filter((pedido) => pedido.tipoEstampa === item.tipo).length;
               return <Metric key={item.tipo} title={item.label} value={count.toString()} icon={Icon} color={item.color} />;
             })}
-          </section>
-        </div>
+        </section>
       )}
     </>
   );

@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 import { App } from "./App";
+import { AdminLimpezaPage } from "./pages/AdminLimpeza";
 import { Dashboard } from "./pages/Dashboard";
 import { EmpresaPage } from "./pages/Empresa";
 import { MetasPage } from "./pages/Metas";
@@ -45,7 +46,8 @@ export const router = createBrowserRouter(
         { path: "metas", element: <MetasPage /> },
         { path: "relatorios", element: <RelatoriosPage /> },
         { path: "usuarios", element: <UsuariosPage /> },
-        { path: "empresa", element: <EmpresaPage /> }
+        { path: "empresa", element: <EmpresaPage /> },
+        { path: "admin/limpeza", element: <AdminLimpezaPage /> }
       ]
     }
   ],
