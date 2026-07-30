@@ -7,7 +7,15 @@ function empresaNome(empresa?: Empresa) {
 }
 
 function whatsappUrl(telefone: string, text: string) {
-  return `https://wa.me/55${onlyDigits(telefone)}?text=${encodeURIComponent(text)}`;
+  const phone = `55${onlyDigits(telefone)}`;
+  const encodedText = encodeURIComponent(text);
+  const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  if (isMobile) {
+    return `https://wa.me/${phone}?text=${encodedText}`;
+  }
+
+  return `https://web.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
 }
 
 export function buildPedidoStatusWhatsapp(pedido: Pedido, empresa?: Empresa) {
@@ -17,7 +25,9 @@ export function buildPedidoStatusWhatsapp(pedido: Pedido, empresa?: Empresa) {
     `Aqui é a equipe da ${empresaNome(empresa)}.`,
     "Esperamos que esteja tudo bem com você! ✨",
     "",
+    "------------------------------",
     "📌 *Atualização do Pedido*",
+    "------------------------------",
     "",
     `📍 Status atual: *${statusLabel(pedido.status)}*`,
     "",
@@ -36,7 +46,9 @@ export function buildTrackingWhatsapp(pedido: Pedido, rastreio: string, empresa?
     `Aqui é a equipe da ${empresaNome(empresa)}.`,
     "Temos uma atualização importante sobre o seu pedido. ✨",
     "",
+    "------------------------------",
     "🚚 *Envio do Pedido*",
+    "------------------------------",
     "",
     "Seu pedido foi enviado.",
     `📦 Código de rastreio: *${rastreio.trim()}*`,

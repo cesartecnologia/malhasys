@@ -1,6 +1,7 @@
 import { doc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { db, ensureAuthenticated } from "../lib/firebase";
+import { friendlyErrorMessage } from "../lib/publicErrors";
 import type { Empresa } from "../types";
 
 const THEME_KEY = "malhariaos-theme";
@@ -44,14 +45,14 @@ export function useEmpresa() {
           },
           (err) => {
             window.clearTimeout(loadingFallback);
-            setError(err.message);
+            setError(friendlyErrorMessage(err, "Não foi possível carregar os dados da empresa."));
             setLoading(false);
           }
         );
       })
       .catch((err) => {
         window.clearTimeout(loadingFallback);
-        setError(err.message);
+        setError(friendlyErrorMessage(err, "Não foi possível carregar os dados da empresa."));
         setLoading(false);
       });
 

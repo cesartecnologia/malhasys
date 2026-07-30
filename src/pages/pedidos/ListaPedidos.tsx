@@ -10,6 +10,7 @@ import { db, ensureAuthenticated } from "../../lib/firebase";
 import { buildPedidoNumberMap, date, money, parseCurrency, pedidoNumber as formatPedidoNumber } from "../../lib/format";
 import { getPedidoPreviewUrl, normalizePedidoArtes } from "../../lib/pedidoArtes";
 import { ARTE_FINAL_OBRIGATORIA, pedidoPodeEntrarNoStatus } from "../../lib/pedidoWorkflow";
+import { friendlyErrorMessage } from "../../lib/publicErrors";
 import { isCanceled, statusLabel, statusMatches } from "../../lib/status";
 import { etapas, type Pedido, type Prioridade, type StatusPedido } from "../../types";
 import { usePedidos } from "../../hooks/usePedidos";
@@ -94,7 +95,7 @@ export function ListaPedidos() {
       });
       setEditing(null);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Nao foi possivel salvar o pedido.");
+      setFormError(friendlyErrorMessage(err, "Não foi possível salvar o pedido."));
     } finally {
       setSaving(false);
     }

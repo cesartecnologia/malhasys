@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/PageHeader";
 import { db, ensureAuthenticated } from "../../lib/firebase";
+import { friendlyErrorMessage } from "../../lib/publicErrors";
 import { uploadFile } from "../../lib/storage";
 
 export function NovoCliente() {
@@ -59,7 +60,7 @@ export function NovoCliente() {
       setSaving(false);
       window.setTimeout(() => navigate(`/clientes/${docRef.id}`), 1200);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel salvar o cliente.");
+      setError(friendlyErrorMessage(err, "Não foi possível salvar o cliente."));
       setSaving(false);
     }
   }

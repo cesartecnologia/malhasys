@@ -10,6 +10,7 @@ import { usePedidos } from "../hooks/usePedidos";
 import { db, ensureAuthenticated } from "../lib/firebase";
 import { buildPedidoNumberMap, date, pedidoNumber } from "../lib/format";
 import { getPedidoPreviewUrl, normalizePedidoArtes, pedidoTemTodasArtesFinais } from "../lib/pedidoArtes";
+import { friendlyErrorMessage } from "../lib/publicErrors";
 import { uploadFile } from "../lib/storage";
 import type { Pedido, PedidoArte } from "../types";
 
@@ -189,13 +190,13 @@ export function DetalheDesigner() {
             setLoading(false);
           },
           (err) => {
-            setError(err.message);
+            setError(friendlyErrorMessage(err, "Não foi possível carregar o pedido."));
             setLoading(false);
           }
         );
       })
       .catch((err) => {
-        setError(err.message);
+        setError(friendlyErrorMessage(err, "Não foi possível carregar o pedido."));
         setLoading(false);
       });
 
@@ -261,7 +262,7 @@ export function DetalheDesigner() {
       setMessage(release ? "Artes aprovadas e enviadas para produção." : "Detalhes da arte salvos.");
       if (release) window.setTimeout(() => navigate("/designer"), 700);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Nao foi possivel salvar os detalhes da arte.");
+      setMessage(friendlyErrorMessage(err, "Não foi possível salvar os detalhes da arte."));
     } finally {
       setSaving(false);
     }

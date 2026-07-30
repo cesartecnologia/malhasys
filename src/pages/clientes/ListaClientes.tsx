@@ -8,6 +8,7 @@ import { LoadingSpinner } from "../../components/LoadingSpinner";
 import { PageHeader } from "../../components/PageHeader";
 import { useClientes } from "../../hooks/useClientes";
 import { db, ensureAuthenticated } from "../../lib/firebase";
+import { friendlyErrorMessage } from "../../lib/publicErrors";
 import type { Cliente } from "../../types";
 
 type ViewMode = "cards" | "list";
@@ -57,7 +58,7 @@ export function ListaClientes() {
       });
       setEditing(null);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Nao foi possivel salvar o cliente.");
+      setFormError(friendlyErrorMessage(err, "Não foi possível salvar o cliente."));
     } finally {
       setSaving(false);
     }

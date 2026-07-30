@@ -1,14 +1,18 @@
+import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { CheckCircle2, Edit3, Mail, MoreHorizontal, Phone, Plus, Save, Trash2, UserRound, XCircle } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { PageHeader } from "../components/PageHeader";
 import { useUsuarios } from "../hooks/useUsuarios";
-import { db, ensureAuthenticated } from "../lib/firebase";
-import type { Perfil, Usuario } from "../types";
+import { db, ensureAuthenticated, secondaryAuth } from "../lib/firebase";
+import { friendlyErrorMessage } from "../lib/publicErrors";
+import type { Empresa, Perfil, Usuario } from "../types";
 
 export function UsuariosPage() {
+  const { empresa } = useOutletContext<{ perfil: Perfil; mostrarFinanceiro: boolean; empresa: Empresa; usuarioNome: string }>();
   const { usuarios, loading, error } = useUsuarios();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Usuario | null>(null);
@@ -31,24 +35,34 @@ export function UsuariosPage() {
         telefone: form.get("telefone"),
         cargo: form.get("cargo"),
         perfil: form.get("perfil") as Perfil,
-        ativo: editing?.ativo ?? true
+        ativo: editing?.ativo ?? true,
+        empresaId: editing?.empresaId || "config",
+        empresaNome: empresa.nome || editing?.empresaNome || "MalhaSys"
       };
 
       if (editing) {
         await updateDoc(doc(db, "usuarios", editing.id), payload);
       } else {
         if (!payload.email) throw new Error("Informe o email do usuario.");
-        await setDoc(doc(db, "usuarios", payload.email), {
-          ...payload,
-          createdAt: serverTimestamp()
-        });
+        const senha = String(form.get("senha") || "");
+        if (senha.length < 6) throw new Error("Crie uma senha com pelo menos 6 caracteres.");
+        const credential = await createUserWithEmailAndPassword(secondaryAuth, payload.email, senha);
+        try {
+          await setDoc(doc(db, "usuarios", payload.email), {
+            ...payload,
+            uid: credential.user.uid,
+            createdAt: serverTimestamp()
+          });
+        } finally {
+          await signOut(secondaryAuth).catch(() => undefined);
+        }
       }
 
       event.currentTarget.reset();
       setOpen(false);
       setEditing(null);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Nao foi possivel salvar o usuario.");
+      setFormError(friendlyErrorMessage(err, "Não foi possível salvar o usuário."));
     } finally {
       setSaving(false);
     }
@@ -100,6 +114,9 @@ export function UsuariosPage() {
         <form className="form-card form-grid user-form" onSubmit={submit}>
           <label className="field"><span>Nome</span><input name="nome" required placeholder="Nome completo" defaultValue={editing?.nome || ""} /></label>
           <label className="field"><span>Email</span><input name="email" type="email" required readOnly={Boolean(editing)} placeholder="usuario@empresa.com" defaultValue={editing?.email || ""} /></label>
+          {!editing ? (
+            <label className="field"><span>Senha de acesso</span><input name="senha" type="password" required minLength={6} placeholder="Mínimo 6 caracteres" autoComplete="new-password" /></label>
+          ) : null}
           <label className="field"><span>Telefone</span><input name="telefone" placeholder="WhatsApp ou telefone" defaultValue={editing?.telefone || ""} /></label>
           <label className="field"><span>Cargo</span><input name="cargo" placeholder="Ex: Designer, Costura, Gestor" defaultValue={editing?.cargo || ""} /></label>
           <label className="field">

@@ -8,6 +8,7 @@ import { PageHeader } from "../components/PageHeader";
 import { usePedidos } from "../hooks/usePedidos";
 import { db, ensureAuthenticated } from "../lib/firebase";
 import { buildPedidoNumberMap, pedidoNumber } from "../lib/format";
+import { friendlyErrorMessage } from "../lib/publicErrors";
 import { buildTrackingWhatsapp } from "../lib/whatsapp";
 import type { Empresa, Pedido, Perfil } from "../types";
 
@@ -29,7 +30,7 @@ export function EnvioPage() {
       await updateDoc(doc(db, "pedidos", pedido.id), { rastreio });
       setMessage("Rastreio salvo.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Não foi possível salvar o rastreio.");
+      setMessage(friendlyErrorMessage(err, "Não foi possível salvar o rastreio."));
     } finally {
       setSavingId("");
     }

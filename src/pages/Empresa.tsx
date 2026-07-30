@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
 import { db, ensureAuthenticated } from "../lib/firebase";
+import { friendlyErrorMessage } from "../lib/publicErrors";
 import { uploadFile } from "../lib/storage";
 import type { Empresa, Perfil } from "../types";
 
@@ -63,7 +64,7 @@ export function EmpresaPage() {
       );
       setSaving(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel salvar as configuracoes.");
+      setError(friendlyErrorMessage(err, "Não foi possível salvar as configurações."));
       setSaving(false);
     }
   }

@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { getApps, initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -11,14 +11,16 @@ const firebaseConfig = {
 };
 
 export const firebaseApp = initializeApp(firebaseConfig);
+const secondaryFirebaseApp = getApps().find((app) => app.name === "secondary-auth") || initializeApp(firebaseConfig, "secondary-auth");
 export const db = getFirestore(firebaseApp);
 export const auth = getAuth(firebaseApp);
+export const secondaryAuth = getAuth(secondaryFirebaseApp);
 
 let authReadyPromise: Promise<User | null> | null = null;
 
 export function assertFirebaseConfigured() {
   if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "undefined") {
-    throw new Error("Configure as variaveis VITE_FIREBASE_* no .env para conectar ao Firestore.");
+    throw new Error("O sistema ainda não está pronto para receber acessos. Fale com o suporte.");
   }
 }
 
@@ -39,5 +41,5 @@ export async function ensureAuthenticated() {
   const user = auth.currentUser || await waitForAuthReady();
   if (user) return user;
 
-  throw new Error("Sessao expirada. Entre novamente no sistema.");
+  throw new Error("Sua sessão expirou. Entre novamente no sistema.");
 }

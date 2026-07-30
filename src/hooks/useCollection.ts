@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { DocumentData, Query } from "firebase/firestore";
 import { onSnapshot } from "firebase/firestore";
 import { ensureAuthenticated } from "../lib/firebase";
+import { friendlyErrorMessage } from "../lib/publicErrors";
 
 export function useCollection<T extends { id: string }>(queryRef: Query<DocumentData>) {
   const [data, setData] = useState<T[]>([]);
@@ -27,14 +28,14 @@ export function useCollection<T extends { id: string }>(queryRef: Query<Document
           },
           (err) => {
             window.clearTimeout(loadingFallback);
-            setError(err.message);
+            setError(friendlyErrorMessage(err, "Não foi possível carregar as informações."));
             setLoading(false);
           }
         );
       })
       .catch((err) => {
         window.clearTimeout(loadingFallback);
-        setError(err.message);
+        setError(friendlyErrorMessage(err, "Não foi possível carregar as informações."));
         setLoading(false);
       });
 

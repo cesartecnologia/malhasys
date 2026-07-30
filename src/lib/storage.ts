@@ -39,11 +39,11 @@ export async function uploadFile(folder: string, file?: File | null) {
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
   if (!cloudName || !uploadPreset) {
-    throw new Error("Configure VITE_CLOUDINARY_CLOUD_NAME e VITE_CLOUDINARY_UPLOAD_PRESET no .env.");
+    throw new Error("O envio de arquivos ainda não está disponível. Fale com o suporte.");
   }
 
   if (!/^[a-zA-Z0-9_-]+$/.test(cloudName)) {
-    throw new Error("Nome do Cloudinary inválido.");
+    throw new Error("O envio de arquivos ainda não está disponível. Fale com o suporte.");
   }
 
   const formData = new FormData();
@@ -59,7 +59,7 @@ export async function uploadFile(folder: string, file?: File | null) {
   const data = (await response.json()) as CloudinaryUploadResponse;
 
   if (!response.ok || !data.secure_url) {
-    throw new Error(data.error?.message || "Falha ao enviar arquivo para o Cloudinary.");
+    throw new Error("Não foi possível enviar o arquivo.");
   }
 
   return { url: data.secure_url, path: data.public_id || "" };

@@ -91,6 +91,8 @@ export type Usuario = {
   cargo?: string;
   telefone?: string;
   ativo: boolean;
+  empresaId?: string;
+  empresaNome?: string;
   createdAt?: Timestamp;
 };
 

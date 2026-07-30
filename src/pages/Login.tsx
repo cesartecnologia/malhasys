@@ -3,8 +3,10 @@ import { ArrowRight, ClipboardCheck, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck
 import { Link, useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { SystemNotify } from "../components/SystemNotify";
 import { setSession } from "../lib/session";
 import { assertFirebaseConfigured, auth, db } from "../lib/firebase";
+import { loginErrorMessage } from "../lib/publicErrors";
 import type { Usuario } from "../types";
 
 export function LoginPage() {
@@ -40,7 +42,7 @@ export function LoginPage() {
       const snapshot = emailSnapshot;
 
       if (!snapshot.exists()) {
-        setError("Usuário autenticado, mas sem perfil cadastrado no sistema.");
+        setError("Seu acesso ainda não foi liberado no sistema. Fale com um administrador.");
         return;
       }
 
@@ -59,7 +61,7 @@ export function LoginPage() {
       });
       navigate("/", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível entrar no sistema.");
+      setError(loginErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -123,8 +125,6 @@ export function LoginPage() {
               <button className="ghost login-link" type="button">Recuperar senha</button>
             </div>
 
-            {error ? <p className="login-error">{error}</p> : null}
-
             <button className="login-submit" type="submit" disabled={loading}>
               {loading ? "Entrando..." : "Entrar"} <ArrowRight size={18} />
             </button>
@@ -136,6 +136,13 @@ export function LoginPage() {
           </footer>
         </div>
       </section>
+      {error ? (
+        <SystemNotify
+          title="Não foi possível entrar"
+          message={error}
+          onClose={() => setError("")}
+        />
+      ) : null}
     </main>
   );
 }

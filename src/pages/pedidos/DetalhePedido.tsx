@@ -11,6 +11,7 @@ import { db, ensureAuthenticated } from "../../lib/firebase";
 import { buildPedidoNumberMap, formatCurrencyInput, money, parseCurrency, pedidoNumber } from "../../lib/format";
 import { normalizePedidoArtes } from "../../lib/pedidoArtes";
 import { ARTE_FINAL_OBRIGATORIA, pedidoPodeEntrarNoStatus } from "../../lib/pedidoWorkflow";
+import { friendlyErrorMessage } from "../../lib/publicErrors";
 import { isCanceled, normalizeStatus } from "../../lib/status";
 import { buildPedidoStatusWhatsapp } from "../../lib/whatsapp";
 import type { Empresa, Pedido, Perfil } from "../../types";
@@ -53,13 +54,13 @@ export function PedidoDetail({ id, backTo }: { id: string; backTo: string }) {
             setLoading(false);
           },
           (err) => {
-            setError(err.message);
+            setError(friendlyErrorMessage(err, "Não foi possível carregar o pedido."));
             setLoading(false);
           }
         );
       })
       .catch((err) => {
-        setError(err.message);
+        setError(friendlyErrorMessage(err, "Não foi possível carregar o pedido."));
         setLoading(false);
       });
     return () => {

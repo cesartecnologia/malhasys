@@ -6,6 +6,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { useClientes } from "../../hooks/useClientes";
 import { db, ensureAuthenticated } from "../../lib/firebase";
 import { formatCurrencyInput, parseCurrency } from "../../lib/format";
+import { friendlyErrorMessage } from "../../lib/publicErrors";
 import { uploadFile } from "../../lib/storage";
 import type { PedidoItem } from "../../types";
 
@@ -89,7 +90,7 @@ export function NovoPedido() {
       });
       navigate(`/pedidos/${docRef.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel salvar o pedido.");
+      setError(friendlyErrorMessage(err, "Não foi possível salvar o pedido."));
       setSaving(false);
     }
   }
